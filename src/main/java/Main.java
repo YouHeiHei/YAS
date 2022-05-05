@@ -12,6 +12,7 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -247,6 +248,8 @@ public class Main {
             OEdge edge = db.newEdge(user, tweet, "post");
             edge.save();
         }
+        iter1.close();
+        iter2.close();
     }
 
     /**
@@ -272,6 +275,9 @@ public class Main {
             OEdge edge = db.newEdge(tweet, retweet, "retweet");
             edge.save();
         }
+        iter1.close();
+        iter2.close();
+
     }
 
     /**
@@ -297,6 +303,8 @@ public class Main {
             OEdge edge = db.newEdge(tweet, reply, "reply");
             edge.save();
         }
+        iter1.close();
+        iter2.close();
     }
 
     /**
@@ -322,6 +330,8 @@ public class Main {
             OEdge edge = db.newEdge(tweet, quote, "quote");
             edge.save();
         }
+        iter1.close();
+        iter2.close();
     }
 
     /**
@@ -347,6 +357,8 @@ public class Main {
             OEdge edge = db.newEdge(tweet, hashtagRes, "contain");
             edge.save();
         }
+        iter1.close();
+        iter2.close();
     }
 
     /**
@@ -360,6 +372,7 @@ public class Main {
         OResultSet iter1 = db.query(query1);
         Stream<OVertex> tweetList = iter1.vertexStream();
         Optional<OVertex> optionTweet = tweetList.findFirst();
+        iter1.close();
         return optionTweet.isPresent();
     }
 
@@ -374,6 +387,7 @@ public class Main {
         OResultSet iter1 = db.query(query1);
         Stream<OVertex> userList = iter1.vertexStream();
         Optional<OVertex> optionUser = userList.findFirst();
+        iter1.close();
         return optionUser.isPresent();
     }
 
@@ -388,6 +402,7 @@ public class Main {
         OResultSet iter1 = db.query(query1);
         Stream<OVertex> hashtagList = iter1.vertexStream();
         Optional<OVertex> hashtagVertex = hashtagList.findFirst();
+        iter1.close();
         return hashtagVertex.isPresent();
     }
 
@@ -550,6 +565,7 @@ public class Main {
                         db.query(replyQuery);
                     }
                 }
+                iter1.close();
             }
             if (quoteId != -1 && checkTweetVertex(db, quoteId)) {
                 createQuoteEdge(db, tweetId, quoteId);
@@ -566,6 +582,7 @@ public class Main {
                         db.query(quoteQuery);
                     }
                 }
+                iter1.close();
             }
             return;
         }
@@ -634,27 +651,23 @@ public class Main {
         }
     }
 
-//    @SuppressWarnings("unchecked")
-    public static void main(String[] args) throws IOException, ParseException {
-        //OrientDB connection
-        OrientDB orient = new OrientDB("remote:localhost", OrientDBConfig.defaultConfig());
-        ODatabaseSession db = orient.open("twitterdb", "root", "sc16041102");
-
-        //create schemas for Tweets and Users, create relations
+    private static void createDataBase(ODatabaseSession db) {
         createTweetSchema(db);
         createUserSchema(db);
         createHashtagSchema(db);
         createRelations(db);
+    }
 
-        /*
-        * JSON parsing for local twitter data set
-        * NOTE: The JSON data set it gave is not actually JSON
-        *       It has weird eof in between each JSON object
-        *       Therefore requires us to only read old lines, ex. 1, 3, 5, ...
-        * If you want to read your file, please change the file reader filename
-        */
+    /**
+     * JSON parsing for local twitter data set
+     * NOTE: The JSON data set it gave is not actually JSON
+     *       It has weird eof in between each JSON object
+     *       Therefore requires us to only read old lines, ex. 1, 3, 5, ...
+     * If you want to read your file, please change the file reader filename
+     */
+    private static void importDataFromJson(ODatabaseSession db, String fileLocation) throws IOException, ParseException {
         JSONParser jsonParser = new JSONParser();
-        try (BufferedReader br = new BufferedReader(new FileReader("C:/Users/17479/Desktop/java_test/src/main/resources/data/Eurovision4.json"))) {
+        try (BufferedReader br = new BufferedReader(new FileReader(fileLocation))) {
             int lineNum = 0;
             String line;
             while ((line = br.readLine()) != null) {
@@ -666,23 +679,22 @@ public class Main {
                 handleEachTweet(db, json);
             }
         }
+    }
+
+//    @SuppressWarnings("unchecked")
+    public static void main(String[] args) throws IOException, ParseException {
+        //OrientDB connection
+        OrientDB orient = new OrientDB("remote:localhost", OrientDBConfig.defaultConfig());
+        ODatabaseSession db = orient.open("twitterdb", "root", "sc16041102");
+
+        //create schemas for Tweets and Users, create relations
+//        createDataBase(db);
+        String fileLocation = "C:/Users/17479/Desktop/java_test/src/main/resources/data/Eurovision8.json";
+        importDataFromJson(db, fileLocation);
+
 
         db.close();
         orient.close();
     }
 
 }
-
-//      Match {class: User, as: u1} -post-> {as: t1} -reply-> {as: t2} <-post- {as: u2, where: ($matched.u1 != $currentMatch)},
-//	        {as: u2} -post-> {as: t3} -reply-> {as: t4} <-post- {as: u1}
-//      RETURN u1.user_id, u2.user_id, t1.tweet_id, t2.tweet_id, t3.tweet_id, t4.tweet_id
-
-//      Match {class: User, as: u1} -post-> {as: t1} -reply-> {as: t2} <-post- {as: u2, where: ($matched.u1 != $currentMatch)},
-//          {as: u1} -post-> {as: t3} <-reply- {as: t4} <-post- {as: u2},
-
-//          {as: u2} -post-> {as: t5} -reply-> {as: t6} <-post- {as: u3, where: ($matched.u2 != $currentMatch)},
-//          {as: u2} -post-> {as: t7} <-reply- {as: t8} <-post- {as: u3},
-
-//          {as: u3} -post-> {as: t9} -reply-> {as: t10} <-post- {as: u1},
-//          {as: u3} -post-> {as: t11} <-reply- {as: t12} <-post- {as: u1}
-//      RETURN u1.user_id, u2.user_id, u3.user_id, t1.tweet_id, t2.tweet_id, t3.tweet_id, t4.tweet_id, t5.tweet_id, t6.tweet_id, t7.tweet_id, t8.tweet_id, t9.tweet_id, t10.tweet_id, t11.tweet_id, t12.tweet_id
